@@ -3,7 +3,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <title>FC - Cognate Puzzle (Dual Language)</title>
+  <title>FC - Cognate Puzzle (Vocal Only)</title>
   <style>
     body { font-family: Arial, sans-serif; background: #f4f8ff; text-align: center; padding: 40px; }
     h1 { font-size: 2em; color: #2c3e50; }
@@ -13,21 +13,20 @@
       padding: 10px 20px;
       cursor: pointer;
     }
-    #result, #score { margin-top: 30px; font-size: 1.1em; }
-    #hiddenWord { font-size: 2em; letter-spacing: 12px; margin-top: 20px; }
-    input[type="text"] { font-size: 1em; padding: 5px; }
+    #result, #score, #hiddenWord, #listening {
+      margin-top: 25px;
+      font-size: 1.2em;
+    }
+    #hiddenWord { font-size: 2em; letter-spacing: 12px; }
+    #listening { color: #0077cc; font-weight: bold; }
   </style>
 </head>
 <body>
-  <h1>🎯 Cognate Puzzle (Dual Accent)</h1>
-  <p>Click a word and pronounce it in English or French</p>
+  <h1>🎯 Cognate Puzzle</h1>
+  <p>Unlock the hidden word by pronouncing the right cognates</p>
   <div id="hiddenWord"></div>
   <div class="words" id="wordList"></div>
-  <p>
-    <input id="guessInput" placeholder="Guess the full word" />
-    <button onclick="checkGuess()">Guess</button>
-  </p>
-  <button onclick="pronounceFullWord()">🎤 Pronounce full word</button>
+  <div id="listening"></div>
   <div id="result"></div>
   <div id="score"></div>
 
@@ -36,75 +35,30 @@
       target: "TABLE",
       options: ["TALENT", "ANTIQUE", "BUREAU", "LIBERAL", "EPISODE"],
       accepted: {
-        "TALENT": ["TALENT", "TALEN", "TALANT", "TALANTT"],
+        "TALENT": ["TALENT", "TALEN", "TALANT"],
         "ANTIQUE": ["ANTIQUE", "ANTIK", "ANTIKUE"],
         "BUREAU": ["BUREAU", "BUREAUX", "BURO"],
         "LIBERAL": ["LIBERAL", "LITERAL", "LIVERAL"],
-        "EPISODE": ["EPISODE", "EPISOD", "EPIZODE"]
+        "EPISODE": ["EPISODE", "EPIZODE", "EPISOD"]
       }
     };
 
     let revealed = Array(puzzle.target.length).fill("_");
     let score = parseInt(localStorage.getItem("fcScore") || "0");
-    let fullPronounced = false;
+    let validated = {};
+    let fullSolved = false;
 
     function displayWord() {
       document.getElementById("hiddenWord").textContent = revealed.join(" ");
       document.getElementById("score").innerHTML = "Score: <strong>" + score + "</strong>";
     }
 
+    function showListening(state) {
+      document.getElementById("listening").textContent = state ? "🎤 Listening... Say the word now!" : "";
+    }
+
     function speakAndCheck(word) {
-      const letter = word[0].toUpperCase();
-      const pos = puzzle.target.indexOf(letter);
-
-      function handleResult(spoken, lang) {
-        const upper = spoken.toUpperCase().trim();
-        if (puzzle.accepted[word].includes(upper)) {
-          if (pos >= 0) revealed[pos] = letter;
-          score += 1;
-          document.getElementById("result").textContent = `✅ ${lang} OK: You said "${spoken}"`;
-        } else {
-          document.getElementById("result").textContent = `❌ ${lang} fail: You said "${spoken}"`;
-          score -= 1;
-        }
-        localStorage.setItem("fcScore", score);
-        displayWord();
-      }
-
-      function runRecognition(lang, fallback = null) {
-        const recognition = new (window.SpeechRecognition || window.webkitSpeechRecognition)();
-        recognition.lang = lang;
-        recognition.interimResults = false;
-        recognition.maxAlternatives = 1;
-
-        recognition.onresult = (event) => handleResult(event.results[0][0].transcript, lang);
-        recognition.onerror = (event) => {
-          if (fallback) {
-            runRecognition(fallback);
-          } else {
-            document.getElementById("result").textContent = `⚠️ Speech error: ${event.error}`;
-          }
-        };
-
-        recognition.start();
-      }
-
-      runRecognition("en-US", "fr-FR");
-    }
-
-    function checkGuess() {
-      const guess = document.getElementById("guessInput").value.trim().toUpperCase();
-      if (guess === puzzle.target) {
-        score += 5;
-        document.getElementById("result").textContent = "🎉 Correct! You've guessed the word.";
-        localStorage.setItem("fcScore", score);
-        displayWord();
-      } else {
-        document.getElementById("result").textContent = "❌ Wrong guess.";
-      }
-    }
-
-    function pronounceFullWord() {
+      showListening(true);
       const recognition = new (window.SpeechRecognition || window.webkitSpeechRecognition)();
       recognition.lang = "en-US";
       recognition.interimResults = false;
@@ -112,25 +66,43 @@
 
       recognition.onresult = function(event) {
         const spoken = event.results[0][0].transcript.toUpperCase().trim();
-        if (spoken === puzzle.target && !fullPronounced) {
-          score += 5;
-          fullPronounced = true;
-          document.getElementById("result").textContent = "🎤 Well pronounced! +5 points.";
-          localStorage.setItem("fcScore", score);
-          displayWord();
-        } else if (spoken !== puzzle.target) {
+        showListening(false);
+
+        if (puzzle.accepted[word].includes(spoken)) {
+          const letter = word[0].toUpperCase();
+          const pos = puzzle.target.indexOf(letter);
+          if (pos >= 0 && revealed[pos] === "_") {
+            revealed[pos] = letter;
+            score += 1;
+            validated[letter] = true;
+            document.getElementById("result").textContent = `✅ Correct: You said "${spoken}"`;
+          }
+        } else {
           score -= 1;
-          document.getElementById("result").textContent = "❌ Incorrect pronunciation: " + spoken;
-          localStorage.setItem("fcScore", score);
-          displayWord();
+          document.getElementById("result").textContent = `❌ Incorrect: You said "${spoken}"`;
         }
+
+        localStorage.setItem("fcScore", score);
+        displayWord();
+        checkCompletion();
       };
 
       recognition.onerror = function(event) {
-        document.getElementById("result").textContent = "⚠️ Error: " + event.error;
+        showListening(false);
+        document.getElementById("result").textContent = `⚠️ Error: ${event.error}`;
       };
 
       recognition.start();
+    }
+
+    function checkCompletion() {
+      if (!revealed.includes("_") && !fullSolved) {
+        fullSolved = true;
+        score += 5;
+        localStorage.setItem("fcScore", score);
+        document.getElementById("result").textContent = "🎉 You completed the word TABLE! +5 points.";
+        displayWord();
+      }
     }
 
     function setupPuzzle() {
