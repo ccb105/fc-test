@@ -3,14 +3,9 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <title>FC - Cognate Puzzle</title>
+  <title>FC - Cognate Puzzle (Dual Language)</title>
   <style>
-    body {
-      font-family: Arial, sans-serif;
-      background: #f4f8ff;
-      text-align: center;
-      padding: 40px;
-    }
+    body { font-family: Arial, sans-serif; background: #f4f8ff; text-align: center; padding: 40px; }
     h1 { font-size: 2em; color: #2c3e50; }
     .words button {
       font-size: 1.1em;
@@ -18,24 +13,14 @@
       padding: 10px 20px;
       cursor: pointer;
     }
-    #result, #score {
-      margin-top: 30px;
-      font-size: 1.1em;
-    }
-    #hiddenWord {
-      font-size: 2em;
-      letter-spacing: 12px;
-      margin-top: 20px;
-    }
-    input[type="text"] {
-      font-size: 1em;
-      padding: 5px;
-    }
+    #result, #score { margin-top: 30px; font-size: 1.1em; }
+    #hiddenWord { font-size: 2em; letter-spacing: 12px; margin-top: 20px; }
+    input[type="text"] { font-size: 1em; padding: 5px; }
   </style>
 </head>
 <body>
-  <h1>🎯 Cognate Puzzle</h1>
-  <p>If you see buttons below, the game is working correctly.</p>
+  <h1>🎯 Cognate Puzzle (Dual Accent)</h1>
+  <p>Click a word and pronounce it in English or French</p>
   <div id="hiddenWord"></div>
   <div class="words" id="wordList"></div>
   <p>
@@ -49,7 +34,14 @@
   <script>
     const puzzle = {
       target: "TABLE",
-      options: ["TALENT", "ANTIQUE", "BUREAU", "LIBERAL", "EPISODE"]
+      options: ["TALENT", "ANTIQUE", "BUREAU", "LIBERAL", "EPISODE"],
+      accepted: {
+        "TALENT": ["TALENT", "TALEN", "TALANT", "TALANTT"],
+        "ANTIQUE": ["ANTIQUE", "ANTIK", "ANTIKUE"],
+        "BUREAU": ["BUREAU", "BUREAUX", "BURO"],
+        "LIBERAL": ["LIBERAL", "LITERAL", "LIVERAL"],
+        "EPISODE": ["EPISODE", "EPISOD", "EPIZODE"]
+      }
     };
 
     let revealed = Array(puzzle.target.length).fill("_");
@@ -62,32 +54,42 @@
     }
 
     function speakAndCheck(word) {
-      const recognition = new (window.SpeechRecognition || window.webkitSpeechRecognition)();
-      recognition.lang = "en-US";
-      recognition.interimResults = false;
-      recognition.maxAlternatives = 1;
+      const letter = word[0].toUpperCase();
+      const pos = puzzle.target.indexOf(letter);
 
-      recognition.onresult = function(event) {
-        const spoken = event.results[0][0].transcript.toUpperCase().trim();
-        if (spoken === word.toUpperCase()) {
-          const letter = word[0].toUpperCase();
-          const pos = puzzle.target.indexOf(letter);
+      function handleResult(spoken, lang) {
+        const upper = spoken.toUpperCase().trim();
+        if (puzzle.accepted[word].includes(upper)) {
           if (pos >= 0) revealed[pos] = letter;
           score += 1;
-          document.getElementById("result").textContent = "✅ Correct: " + word;
+          document.getElementById("result").textContent = `✅ ${lang} OK: You said "${spoken}"`;
         } else {
+          document.getElementById("result").textContent = `❌ ${lang} fail: You said "${spoken}"`;
           score -= 1;
-          document.getElementById("result").textContent = "❌ Incorrect: You said " + spoken;
         }
         localStorage.setItem("fcScore", score);
         displayWord();
-      };
+      }
 
-      recognition.onerror = function(event) {
-        document.getElementById("result").textContent = "⚠️ Error: " + event.error;
-      };
+      function runRecognition(lang, fallback = null) {
+        const recognition = new (window.SpeechRecognition || window.webkitSpeechRecognition)();
+        recognition.lang = lang;
+        recognition.interimResults = false;
+        recognition.maxAlternatives = 1;
 
-      recognition.start();
+        recognition.onresult = (event) => handleResult(event.results[0][0].transcript, lang);
+        recognition.onerror = (event) => {
+          if (fallback) {
+            runRecognition(fallback);
+          } else {
+            document.getElementById("result").textContent = `⚠️ Speech error: ${event.error}`;
+          }
+        };
+
+        recognition.start();
+      }
+
+      runRecognition("en-US", "fr-FR");
     }
 
     function checkGuess() {
