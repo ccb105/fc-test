@@ -2,11 +2,146 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <title>Cognate Puzzle Test</title>
+  <meta charset="UTF-8" />
+  <title>FC - Cognate Puzzle</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background: #f4f8ff;
+      text-align: center;
+      padding: 40px;
+    }
+    h1 { font-size: 2em; color: #2c3e50; }
+    .words button {
+      font-size: 1.1em;
+      margin: 10px;
+      padding: 10px 20px;
+      cursor: pointer;
+    }
+    #result, #score {
+      margin-top: 30px;
+      font-size: 1.1em;
+    }
+    #hiddenWord {
+      font-size: 2em;
+      letter-spacing: 12px;
+      margin-top: 20px;
+    }
+    input[type="text"] {
+      font-size: 1em;
+      padding: 5px;
+    }
+  </style>
 </head>
 <body>
-  <h1>French Cognection - Cognate Puzzle</h1>
-  <p>If you're seeing this, your GitHub Pages site is working 🎉</p>
+  <h1>🎯 Cognate Puzzle</h1>
+  <p>Can you guess the hidden cognate?</p>
+  <div id="hiddenWord"></div>
+  <div class="words" id="wordList"></div>
+  <p>
+    <input id="guessInput" placeholder="Guess the full word" />
+    <button onclick="checkGuess()">Guess</button>
+  </p>
+  <button onclick="pronounceFullWord()">🎤 Pronounce full word</button>
+  <div id="result"></div>
+  <div id="score"></div>
+
+  <script>
+    const puzzle = {
+      target: "TABLE",
+      options: ["ANTIQUE", "LIBERAL", "TALENT", "EPISODE", "BUREAU"]
+    };
+
+    let revealed = Array(puzzle.target.length).fill("_");
+    let score = parseInt(localStorage.getItem("fcScore") || "0");
+    let fullPronounced = false;
+
+    function displayWord() {
+      document.getElementById("hiddenWord").textContent = revealed.join(" ");
+      document.getElementById("score").innerHTML = "Score: <strong>" + score + "</strong>";
+    }
+
+    function speakAndCheck(word, letterIndex) {
+      const recognition = new (window.SpeechRecognition || window.webkitSpeechRecognition)();
+      recognition.lang = "en-US";
+      recognition.interimResults = false;
+      recognition.maxAlternatives = 1;
+
+      recognition.onresult = function(event) {
+        const spoken = event.results[0][0].transcript.toUpperCase().trim();
+        if (spoken === word.toUpperCase()) {
+          revealed[letterIndex] = word[0].toUpperCase();
+          score += 1;
+          document.getElementById("result").textContent = "✅ Correct: " + word;
+        } else {
+          score -= 1;
+          document.getElementById("result").textContent = "❌ Incorrect: You said " + spoken;
+        }
+        localStorage.setItem("fcScore", score);
+        displayWord();
+      };
+
+      recognition.onerror = function(event) {
+        document.getElementById("result").textContent = "⚠️ Error: " + event.error;
+      };
+
+      recognition.start();
+    }
+
+    function checkGuess() {
+      const guess = document.getElementById("guessInput").value.trim().toUpperCase();
+      if (guess === puzzle.target) {
+        score += 5;
+        document.getElementById("result").textContent = "🎉 Correct! You've guessed the word.";
+        localStorage.setItem("fcScore", score);
+        displayWord();
+      } else {
+        document.getElementById("result").textContent = "❌ Wrong guess.";
+      }
+    }
+
+    function pronounceFullWord() {
+      const recognition = new (window.SpeechRecognition || window.webkitSpeechRecognition)();
+      recognition.lang = "en-US";
+      recognition.interimResults = false;
+      recognition.maxAlternatives = 1;
+
+      recognition.onresult = function(event) {
+        const spoken = event.results[0][0].transcript.toUpperCase().trim();
+        if (spoken === puzzle.target && !fullPronounced) {
+          score += 5;
+          fullPronounced = true;
+          document.getElementById("result").textContent = "🎤 Well pronounced! +5 points.";
+          localStorage.setItem("fcScore", score);
+          displayWord();
+        } else if (spoken !== puzzle.target) {
+          score -= 1;
+          document.getElementById("result").textContent = "❌ Incorrect pronunciation: " + spoken;
+          localStorage.setItem("fcScore", score);
+          displayWord();
+        }
+      };
+
+      recognition.onerror = function(event) {
+        document.getElementById("result").textContent = "⚠️ Error: " + event.error;
+      };
+
+      recognition.start();
+    }
+
+    function setupPuzzle() {
+      const wordList = document.getElementById("wordList");
+      wordList.innerHTML = "";
+      puzzle.options.forEach((w, i) => {
+        const btn = document.createElement("button");
+        btn.textContent = w;
+        btn.onclick = () => speakAndCheck(w, puzzle.target.indexOf(w[0].toUpperCase()));
+        wordList.appendChild(btn);
+      });
+      displayWord();
+    }
+
+    setupPuzzle();
+  </script>
 </body>
 </html>
