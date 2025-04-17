@@ -3,18 +3,21 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <title>Speechace Pronunciation Demo</title>
+  <title>Speechace Enhanced Demo</title>
   <style>
-    body { font-family: Arial, sans-serif; text-align: center; padding: 40px; background: #f5faff; }
+    body { font-family: Arial, sans-serif; background: #eef7ff; text-align: center; padding: 40px; }
+    h1 { font-size: 2em; }
     button { padding: 10px 20px; font-size: 1.1em; margin-top: 20px; }
-    #status, #score { margin-top: 30px; font-size: 1.2em; }
+    #status, #score, #loading { margin-top: 25px; font-size: 1.2em; }
+    #loading { color: #007acc; font-weight: bold; }
   </style>
 </head>
 <body>
-  <h1>🎤 Speechace Pronunciation Test</h1>
+  <h1>🎤 Speechace Pronunciation Test (Fix)</h1>
   <p>Click the button and pronounce: <strong>"bureau"</strong></p>
   <button onclick="startRecording()">Start Recording</button>
   <div id="status"></div>
+  <div id="loading"></div>
   <div id="score"></div>
 
   <script>
@@ -22,20 +25,22 @@
     let audioChunks = [];
 
     async function startRecording() {
-      document.getElementById("status").textContent = "🎤 Listening...";
+      document.getElementById("status").textContent = "🎤 Listening... Speak now";
       document.getElementById("score").textContent = "";
+      document.getElementById("loading").textContent = "";
 
       try {
         const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-        mediaRecorder = new MediaRecorder(stream);
+        mediaRecorder = new MediaRecorder(stream, { mimeType: 'audio/webm' });
         audioChunks = [];
 
         mediaRecorder.ondataavailable = event => {
-          audioChunks.push(event.data);
+          if (event.data.size > 0) audioChunks.push(event.data);
         };
 
         mediaRecorder.onstop = async () => {
-          const audioBlob = new Blob(audioChunks, { type: "audio/wav" });
+          const audioBlob = new Blob(audioChunks, { type: "audio/webm" });
+
           const formData = new FormData();
           formData.append("user_audio_file", audioBlob);
           formData.append("text", "bureau");
@@ -43,18 +48,25 @@
           formData.append("user_id", "test_user");
           formData.append("key", "g1H3J0fWnKYN%2F8hpjlwxeDjwV1XaG34QFjCv4bBWADKMAJEu7N8A7M8NwofFq%2FH9AMPeosmsghKAxz5MG3F87mqY2S7Le%2BA7HvUlutwGPsS5xLWaVK2mct8IR69Ya%2B4F");
 
-          const response = await fetch("https://api4.speechace.com/api/scoring/text/v0.1/json", {
-            method: "POST",
-            body: formData
-          });
+          document.getElementById("loading").textContent = "⏳ Uploading and analyzing...";
 
-          const result = await response.json();
-          const score = result?.text_score?.score;
-          const message = score >= 85
-            ? `✅ Good job! Pronunciation score: ${score}`
-            : `❌ Try again. Pronunciation score: ${score}`;
-          document.getElementById("score").textContent = message;
+          try {
+            const response = await fetch("https://api4.speechace.com/api/scoring/text/v0.1/json", {
+              method: "POST",
+              body: formData
+            });
+            const result = await response.json();
+            const score = result?.text_score?.score;
+            const message = score >= 85
+              ? `✅ Great job! Pronunciation score: ${score}`
+              : `❌ Not quite. Score: ${score}`;
+            document.getElementById("score").textContent = message;
+          } catch (err) {
+            document.getElementById("score").textContent = "⚠️ Error analyzing your recording.";
+          }
+
           document.getElementById("status").textContent = "";
+          document.getElementById("loading").textContent = "";
         };
 
         mediaRecorder.start();
