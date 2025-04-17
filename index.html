@@ -3,121 +3,69 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <title>FC - Cognate Puzzle (Vocal Only)</title>
+  <title>Speechace Pronunciation Demo</title>
   <style>
-    body { font-family: Arial, sans-serif; background: #f4f8ff; text-align: center; padding: 40px; }
-    h1 { font-size: 2em; color: #2c3e50; }
-    .words button {
-      font-size: 1.1em;
-      margin: 10px;
-      padding: 10px 20px;
-      cursor: pointer;
-    }
-    #result, #score, #hiddenWord, #listening {
-      margin-top: 25px;
-      font-size: 1.2em;
-    }
-    #hiddenWord { font-size: 2em; letter-spacing: 12px; }
-    #listening { color: #0077cc; font-weight: bold; }
+    body { font-family: Arial, sans-serif; text-align: center; padding: 40px; background: #f5faff; }
+    button { padding: 10px 20px; font-size: 1.1em; margin-top: 20px; }
+    #status, #score { margin-top: 30px; font-size: 1.2em; }
   </style>
 </head>
 <body>
-  <h1>🎯 Cognate Puzzle</h1>
-  <p>Unlock the hidden word by pronouncing the right cognates</p>
-  <div id="hiddenWord"></div>
-  <div class="words" id="wordList"></div>
-  <div id="listening"></div>
-  <div id="result"></div>
+  <h1>🎤 Speechace Pronunciation Test</h1>
+  <p>Click the button and pronounce: <strong>"bureau"</strong></p>
+  <button onclick="startRecording()">Start Recording</button>
+  <div id="status"></div>
   <div id="score"></div>
 
   <script>
-    const puzzle = {
-      target: "TABLE",
-      options: ["TALENT", "ANTIQUE", "BUREAU", "LIBERAL", "EPISODE"],
-      accepted: {
-        "TALENT": ["TALENT", "TALEN", "TALANT"],
-        "ANTIQUE": ["ANTIQUE", "ANTIK", "ANTIKUE"],
-        "BUREAU": ["BUREAU", "BUREAUX", "BURO"],
-        "LIBERAL": ["LIBERAL", "LITERAL", "LIVERAL"],
-        "EPISODE": ["EPISODE", "EPIZODE", "EPISOD"]
-      }
-    };
+    let mediaRecorder;
+    let audioChunks = [];
 
-    let revealed = Array(puzzle.target.length).fill("_");
-    let score = parseInt(localStorage.getItem("fcScore") || "0");
-    let validated = {};
-    let fullSolved = false;
+    async function startRecording() {
+      document.getElementById("status").textContent = "🎤 Listening...";
+      document.getElementById("score").textContent = "";
 
-    function displayWord() {
-      document.getElementById("hiddenWord").textContent = revealed.join(" ");
-      document.getElementById("score").innerHTML = "Score: <strong>" + score + "</strong>";
-    }
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        mediaRecorder = new MediaRecorder(stream);
+        audioChunks = [];
 
-    function showListening(state) {
-      document.getElementById("listening").textContent = state ? "🎤 Listening... Say the word now!" : "";
-    }
+        mediaRecorder.ondataavailable = event => {
+          audioChunks.push(event.data);
+        };
 
-    function speakAndCheck(word) {
-      showListening(true);
-      const recognition = new (window.SpeechRecognition || window.webkitSpeechRecognition)();
-      recognition.lang = "en-US";
-      recognition.interimResults = false;
-      recognition.maxAlternatives = 1;
+        mediaRecorder.onstop = async () => {
+          const audioBlob = new Blob(audioChunks, { type: "audio/wav" });
+          const formData = new FormData();
+          formData.append("user_audio_file", audioBlob);
+          formData.append("text", "bureau");
+          formData.append("dialect", "fr-FR");
+          formData.append("user_id", "test_user");
+          formData.append("key", "g1H3J0fWnKYN%2F8hpjlwxeDjwV1XaG34QFjCv4bBWADKMAJEu7N8A7M8NwofFq%2FH9AMPeosmsghKAxz5MG3F87mqY2S7Le%2BA7HvUlutwGPsS5xLWaVK2mct8IR69Ya%2B4F");
 
-      recognition.onresult = function(event) {
-        const spoken = event.results[0][0].transcript.toUpperCase().trim();
-        showListening(false);
+          const response = await fetch("https://api4.speechace.com/api/scoring/text/v0.1/json", {
+            method: "POST",
+            body: formData
+          });
 
-        if (puzzle.accepted[word].includes(spoken)) {
-          const letter = word[0].toUpperCase();
-          const pos = puzzle.target.indexOf(letter);
-          if (pos >= 0 && revealed[pos] === "_") {
-            revealed[pos] = letter;
-            score += 1;
-            validated[letter] = true;
-            document.getElementById("result").textContent = `✅ Correct: You said "${spoken}"`;
-          }
-        } else {
-          score -= 1;
-          document.getElementById("result").textContent = `❌ Incorrect: You said "${spoken}"`;
-        }
+          const result = await response.json();
+          const score = result?.text_score?.score;
+          const message = score >= 85
+            ? `✅ Good job! Pronunciation score: ${score}`
+            : `❌ Try again. Pronunciation score: ${score}`;
+          document.getElementById("score").textContent = message;
+          document.getElementById("status").textContent = "";
+        };
 
-        localStorage.setItem("fcScore", score);
-        displayWord();
-        checkCompletion();
-      };
-
-      recognition.onerror = function(event) {
-        showListening(false);
-        document.getElementById("result").textContent = `⚠️ Error: ${event.error}`;
-      };
-
-      recognition.start();
-    }
-
-    function checkCompletion() {
-      if (!revealed.includes("_") && !fullSolved) {
-        fullSolved = true;
-        score += 5;
-        localStorage.setItem("fcScore", score);
-        document.getElementById("result").textContent = "🎉 You completed the word TABLE! +5 points.";
-        displayWord();
+        mediaRecorder.start();
+        setTimeout(() => {
+          mediaRecorder.stop();
+        }, 3000);
+      } catch (err) {
+        document.getElementById("status").textContent = "⚠️ Microphone access denied or error.";
+        console.error(err);
       }
     }
-
-    function setupPuzzle() {
-      const wordList = document.getElementById("wordList");
-      wordList.innerHTML = "";
-      puzzle.options.forEach(w => {
-        const btn = document.createElement("button");
-        btn.textContent = w;
-        btn.onclick = () => speakAndCheck(w);
-        wordList.appendChild(btn);
-      });
-      displayWord();
-    }
-
-    setupPuzzle();
   </script>
 </body>
 </html>
