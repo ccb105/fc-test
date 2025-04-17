@@ -35,7 +35,7 @@
 </head>
 <body>
   <h1>🎯 Cognate Puzzle</h1>
-  <p>Can you guess the hidden cognate?</p>
+  <p>If you see buttons below, the game is working correctly.</p>
   <div id="hiddenWord"></div>
   <div class="words" id="wordList"></div>
   <p>
@@ -49,7 +49,7 @@
   <script>
     const puzzle = {
       target: "TABLE",
-      options: ["ANTIQUE", "LIBERAL", "TALENT", "EPISODE", "BUREAU"]
+      options: ["TALENT", "ANTIQUE", "BUREAU", "LIBERAL", "EPISODE"]
     };
 
     let revealed = Array(puzzle.target.length).fill("_");
@@ -61,7 +61,7 @@
       document.getElementById("score").innerHTML = "Score: <strong>" + score + "</strong>";
     }
 
-    function speakAndCheck(word, letterIndex) {
+    function speakAndCheck(word) {
       const recognition = new (window.SpeechRecognition || window.webkitSpeechRecognition)();
       recognition.lang = "en-US";
       recognition.interimResults = false;
@@ -70,7 +70,9 @@
       recognition.onresult = function(event) {
         const spoken = event.results[0][0].transcript.toUpperCase().trim();
         if (spoken === word.toUpperCase()) {
-          revealed[letterIndex] = word[0].toUpperCase();
+          const letter = word[0].toUpperCase();
+          const pos = puzzle.target.indexOf(letter);
+          if (pos >= 0) revealed[pos] = letter;
           score += 1;
           document.getElementById("result").textContent = "✅ Correct: " + word;
         } else {
@@ -132,10 +134,10 @@
     function setupPuzzle() {
       const wordList = document.getElementById("wordList");
       wordList.innerHTML = "";
-      puzzle.options.forEach((w, i) => {
+      puzzle.options.forEach(w => {
         const btn = document.createElement("button");
         btn.textContent = w;
-        btn.onclick = () => speakAndCheck(w, puzzle.target.indexOf(w[0].toUpperCase()));
+        btn.onclick = () => speakAndCheck(w);
         wordList.appendChild(btn);
       });
       displayWord();
